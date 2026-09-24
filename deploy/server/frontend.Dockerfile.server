@@ -1,0 +1,22 @@
+# 前端镜像（服务器版）—— 与 frontend/Dockerfile 并存，不影响本地构建
+#
+# 相对原文件的两处改动：
+#   1. 基础镜像走 daocloud 加速（该服务器无法直连 Docker Hub）
+#   2. npm 使用腾讯云镜像（容器内默认走官方源，该服务器不可达）
+
+FROM docker.m.daocloud.io/library/node:20-alpine
+
+WORKDIR /app
+
+# npm 走腾讯云镜像 —— 必须写在 npm install 之前
+RUN npm config set registry https://mirrors.tencent.com/npm/
+
+# 与原始 Dockerfile 一致：只复制 package.json，保证干净安装
+COPY package.json ./
+RUN npm install
+
+COPY . .
+
+EXPOSE 3000
+
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]

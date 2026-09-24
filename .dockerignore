@@ -1,0 +1,34 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+.env
+
+# Node
+frontend/node_modules
+frontend/dist
+
+# Data
+data/raw/*
+data/processed/*
+data/models/*
+!data/**/.gitkeep
+
+# Notebooks
+notebooks
+
+# IDE
+.vscode
+.idea
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docs
+*.md
+!README.md

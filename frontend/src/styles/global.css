@@ -1,0 +1,99 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+.ant-layout {
+  min-height: 100vh !important;
+}
+
+.ant-card {
+  border-radius: 8px;
+}
+
+/* deck.gl tooltip */
+.deck-tooltip {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  background: rgba(0, 0, 0, 0.85);
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 6px;
+  max-width: 320px;
+}
+
+/* ─── 响应式布局 ──────────────────────────────── */
+
+/* 平板及以下 — 统计卡片两列排列 */
+@media (max-width: 768px) {
+  .ant-card {
+    border-radius: 6px;
+  }
+
+  /* 减小页面内边距 */
+  .ant-layout-content > div {
+    padding: 12px !important;
+  }
+
+  /* 地图高度缩小 */
+  .ant-card .ant-card-body .deck-gl-wrapper,
+  [style*="height: 600"],
+  [style*="height: 500"] {
+    height: 350px !important;
+  }
+
+  /* 统计数字缩小 */
+  .ant-statistic-content-value {
+    font-size: 20px !important;
+  }
+
+  /* 表格横向滚动 */
+  .ant-table-wrapper {
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 576px) {
+  /* 导航栏压缩 */
+  .ant-layout-header {
+    padding: 0 12px !important;
+  }
+
+  .ant-layout-header > div:first-child {
+    font-size: 14px !important;
+    margin-right: 16px !important;
+  }
+
+  /* 地图高度进一步缩小 */
+  [style*="height: 600"],
+  [style*="height: 500"],
+  [style*="height: 350"] {
+    height: 280px !important;
+  }
+
+  /* 图表高度自适应 */
+  .echarts-for-react,
+  [style*="height: 400"] {
+    height: 280px !important;
+  }
+}
+
+/* ─── 打印样式 ──────────────────────────────── */
+@media print {
+  .ant-layout-header,
+  .ant-layout-sider {
+    display: none !important;
+  }
+
+  .ant-card {
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+}

@@ -1,0 +1,29 @@
+# 后端镜像（服务器版）—— 与 backend/Dockerfile 并存，不影响本地构建
+#
+# 相对原文件的三处改动，都是为了适配 106.54.224.27：
+#   1. 基础镜像走 daocloud 加速（该服务器无法直连 Docker Hub）
+#   2. pip 使用腾讯云内网镜像（服务器已配置，官方源 pypi.org 不可达）
+#   3. 移除了 gcc/g++ 安装 —— 该服务器 apt 拉 Debian 源极慢，实测会卡住构建；
+#      而 requirements-api.txt 里的 asyncpg / numpy / scikit-learn / pydantic-core
+#      全部提供 cp311 manylinux 预编译 wheel，无需本地编译
+
+FROM docker.m.daocloud.io/library/python:3.11-slim
+
+WORKDIR /app
+
+# pip 走腾讯云镜像（实测可达；官方源不可达）
+RUN pip config set global.index-url https://mirrors.tencentyun.com/pypi/simple \
+ && pip config set global.trusted-host mirrors.tencentyun.com
+
+COPY requirements-api.txt /app/requirements-api.txt
+RUN pip install --no-cache-dir -r /app/requirements-api.txt
+
+# 代码以包形式复制（与 context 根目录配合）
+COPY ./backend /app/backend
+COPY ./scripts /app/scripts
+
+ENV PYTHONPATH=/app
+
+EXPOSE 8000
+
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]

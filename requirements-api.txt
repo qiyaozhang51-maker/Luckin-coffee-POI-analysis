@@ -1,0 +1,28 @@
+# Luckin Spatial Analysis - API Server Dependencies
+# Minimal dependencies for FastAPI backend server
+
+# Web Framework
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# HTTP Client
+# 必需：backend/routers/geo.py 用它调用高德逆地理编码 API
+# 注意：此前遗漏此项导致后端容器启动即崩溃（ModuleNotFoundError: aiohttp），
+#       Docker 部署路径实际从未成功启动过。完整依赖见 requirements.txt。
+aiohttp>=3.9.0
+
+# Database
+asyncpg>=0.29.0
+
+# ML Model Loading (for prediction endpoint)
+# 注意：xgboost 必需 —— 模型文件是 XGBClassifier，joblib 反序列化时需要该包。
+#       此前遗漏导致 /api/prediction/score 返回 500（ModuleNotFoundError: xgboost）。
+joblib>=1.3.0
+numpy>=1.26.0
+scikit-learn>=1.4.0
+xgboost>=2.0.0
+
+# Data Processing
+python-dotenv>=1.0.0

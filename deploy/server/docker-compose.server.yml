@@ -1,0 +1,74 @@
+# 服务器部署专用 compose —— 与本地 docker-compose.yml 并存，互不影响
+#
+# 与原始文件的关键差异（均为适配 106.54.224.27 这台生产服务器）：
+#   1. 项目名固定为 luckin-spatial，避免与服务器上已有的 dataease20 等项目冲突
+#   2. 所有端口只绑定 127.0.0.1，不对外暴露（服务器 UFW 只放行 80）
+#   3. PostGIS 完全不发布端口 —— 只在内部网络可达，杜绝公网暴露数据库
+#   4. 基础镜像走 daocloud 加速地址（该服务器无法直连 Docker Hub）
+#   5. 用完整备份 data/luckin_spatial_backup.sql 初始化数据（含建表 + 数据）
+#
+# 启停：
+#   docker compose -f docker-compose.server.yml -p luckin-spatial up -d --build
+#   docker compose -f docker-compose.server.yml -p luckin-spatial down
+#   docker compose -f docker-compose.server.yml -p luckin-spatial logs -f
+
+name: luckin-spatial
+
+services:
+  postgis:
+    image: docker.m.daocloud.io/postgis/postgis:15-3.3
+    container_name: luckin-postgis
+    environment:
+      POSTGRES_DB: luckin_spatial
+      POSTGRES_USER: luckin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?请在 .env 中设置 POSTGRES_PASSWORD}
+      # 加速 34MB 备份的导入
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    # 注意：刻意不配置 ports —— 数据库只在 compose 内部网络可达
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./data/luckin_spatial_backup.sql:/docker-entrypoint-initdb.d/01_restore.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U luckin -d luckin_spatial"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.server
+    container_name: luckin-backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://luckin:${POSTGRES_PASSWORD}@postgis:5432/luckin_spatial
+      AMAP_API_KEY: ${AMAP_API_KEY:-}
+    depends_on:
+      postgis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app/backend
+      - ./scripts:/app/scripts
+      - ./data:/app/data
+    ports:
+      # 只绑本机回环，公网不可达
+      - "127.0.0.1:8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.server
+    container_name: luckin-frontend
+    environment:
+      VITE_API_TARGET: http://backend:8000
+    depends_on:
+      - backend
+    ports:
+      - "127.0.0.1:3000:3000"
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+    name: luckin-spatial-pgdata

@@ -1,0 +1,52 @@
+services:
+  postgis:
+    image: postgis/postgis:15-3.3
+    container_name: luckin-postgis
+    environment:
+      POSTGRES_DB: luckin_spatial
+      POSTGRES_USER: luckin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?请在 .env 中设置 POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./sql/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+      - ./sql/spatial_join.sql:/docker-entrypoint-initdb.d/02_spatial_join.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U luckin -d luckin_spatial"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: ./backend/Dockerfile
+    container_name: luckin-backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://luckin:${POSTGRES_PASSWORD}@postgis:5432/luckin_spatial
+      AMAP_API_KEY: ${AMAP_API_KEY}
+    depends_on:
+      postgis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app/backend
+      - ./scripts:/app/scripts
+      - ./data:/app/data
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: luckin-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      VITE_API_TARGET: http://backend:8000
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:

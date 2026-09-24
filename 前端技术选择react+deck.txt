@@ -1,0 +1,164 @@
+
+  ---
+  React + deck.gl 原理
+
+  一句话
+
+  React 管"数据 + 状态"，deck.gl 管"GPU 画图"，两者通过 props 桥接。
+
+  ---
+  核心架构（你项目中的实际链路）
+
+  用户操作（拖动滑块/点击地图）
+      │
+      ▼
+  React State 变化（setYear / setSelectedStore）
+      │
+      ▼
+  React 重新计算 props（useMemo / useCallback）
+      │
+      ▼
+  deck.gl 接收新 props →GPU 重绘图层
+      │
+      ▼
+  用户看到新的可视化结果
+
+  ---
+  第一层：React 负责数据流
+
+  看 HomePage.tsx 的代码：
+
+  // 1. React 通过 Hook 从后端拉数据
+  const { heatmap: luckinHeatmap, loading } = useHeatmap('luckin');
+  const { heatmap: sbHeatmap, loading: sbHmLoading } = useHeatmap('starbucks');
+
+  // 2. 把原始坐标数据 →转成 deck.gl 图层配置
+  const mapLayers = useMemo(() => {
+    const layers = [];
+    if (luckinHeatmap?.geojson?.coordinates) {
+      layers.push({
+        type: 'scatterplot',              // 图层类型
+        data: luckinHeatmap.geojson.coordinates,  // 数据：[[lng, lat], [lng, lat], ...]
+        getPosition: (d) => d,            // 告诉 deck.gl 如何从数据中取坐标
+        getFillColor: [22, 119, 255, 160], // RGBA 颜色
+        radiusMinPixels: 2,
+        radiusMaxPixels: 12,
+      });
+    }
+    return layers;
+  }, [luckinHeatmap, sbHeatmap]); // 数据变了才重新计算
+
+  React 做的事：把"后端返回的 8640 个坐标点"变成"deck.gl 能理解的图层描述对象"。
+
+  ---
+  第二层：deck.gl 负责 GPU 渲染
+
+  看 MapView.tsx 的代码：
+
+  // React 传下来的图层配置
+  const deckLayers = useMemo(
+    () => layers.map((cfg, i) => createDeckLayer(cfg, i)),
+    [layers],
+  );
+
+  // deck.gl 组件
+  <DeckGL
+    viewState={viewState}          // React state 控制地图视角
+    controller={true}              // 允许用户拖拽/缩放
+    layers={deckLayers}            // 图层数组
+    onViewStateChange={...}        // 用户操作 →更新 React state
+  >
+    <Map mapStyle={MAP_STYLE} />   // 底图（高德瓦片）
+  </DeckGL>
+
+  deck.gl 做的事：
+  1. 收到 layers 数组
+  2. 对每个 layer 的 data（13K 个坐标点），调用 getPosition 取出经纬度
+  3. 把经纬度 →WebGL 顶点坐标（GPU 并行处理）
+  4. 按 getFillColor / getRadius 着色和定大小
+  5. 渲染到 Canvas 上
+
+  ---
+  第三层：图层工厂（React props →WebGL 对象）
+
+  看 MapView.tsx 的 createDeckLayer：
+
+  function createDeckLayer(config, idx) {
+    const base = { id: `layer-${idx}-${config.type}`, pickable: true };
+
+    switch (config.type) {
+      case 'scatterplot':
+        return new ScatterplotLayer({
+          ...base,
+          data: config.data,                    // 8640个坐标点
+          getPosition: config.getPosition,      // d => [lng, lat]
+          getFillColor: [22, 119, 255, 160],   // 半透明蓝
+          radiusMinPixels: 2,                  // 缩到最小时至少2像素
+          radiusMaxPixels: 12,                 // 放大后最多12像素
+        });
+      case 'heatmap':
+        return new HeatmapLayer({...});        // 热力图模式
+      case 'column':
+        return new ColumnLayer({...});         // 3D柱状图模式
+    }
+  }
+
+  这个函数做的事：把 React 风格的配置对象 →deck.gl 的 WebGL 图层实例。
+
+  ---
+  为什么性能这么好？
+
+  普通方案（Leaflet 画 13K 个 DOM Marker）:
+    每个点 = 一个 <div> DOM 节点
+    13K 个 <div> →浏览器 layout 计算 →卡死
+
+  deck.gl 方案:
+    13K 个坐标点 →一次性上传到 GPU 显存
+    GPU 并行计算每个点的屏幕位置 + 颜色
+    最终输出 = 一张 <canvas> 像素图
+    CPU 完全不参与逐个点渲染
+
+  这就是为什么你项目里 13K 门店点位能流畅拖拽缩放——数据量不管多大，最终输出只是一 Canvas 位图。
+
+  ---
+  受控模式原理（你遇到的 bug 修复）
+
+  // ❌ 非受控模式（之前）：deck.gl 内部自己管视角
+  <DeckGL initialViewState={...} controller={true} />
+
+  // →图层数据更新时，deck.gl 可能把内部视角重置为 initialViewState
+  // →用户拖到某个城市，切换年份，地图弹回全国视图
+
+
+  // ✅ 受控模式（修复后）：React state 是视角的唯一真相源
+  const [viewState, setViewState] = useState({ latitude: 35, longitude: 105, zoom: 4 });
+
+  <DeckGL
+    viewState={viewState}                          // React 说了算
+    onViewStateChange={({ viewState }) => setViewState(viewState)}  // 用户操作→更新React
+    controller={true}
+  />
+
+  // →图层数据更新 →React 重新渲染 →viewState 在 state 里不变 →视角不丢
+
+  ---
+  总结：React 和 deck.gl 的分工
+
+  ┌─────────────────────────────────────────────────┐
+  │                    React                         │
+  │  • 数据获取（useApi →后端 →PostgreSQL）         │
+  │  • 状态管理（useState / useMemo）                │
+  │  • 交互逻辑（onClick →API 调用 →更新 UI）       │
+  │  • 把"业务数据"翻译成"图层配置"                    │
+  ├─────────────────────────────────────────────────┤
+  │               bridge (props)                    │
+  │  { layers, viewState, onClick, onViewState }    │
+  ├─────────────────────────────────────────────────┤
+  │                   deck.gl                        │
+  │  • 把坐标数组 →GPU 顶点缓冲区                    │
+  │  • WebGL shader 并行着色                        │
+  │  • Canvas 像素级渲染                            │
+  │  • 处理用户手势（pan/zoom/click）                 │
+  └─────────────────────────────────────────────────┘
+
+  本质：React 是"数据层"和"控制层"，deck.gl 是"渲染引擎"。React 不碰 Canvas/WebGL，deck.gl 不碰 HTTP/状态管理。它们之间的接口就是那 4-5 个 props。

@@ -1,0 +1,75 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Environment
+.env
+*.env.local
+
+# Data (large files)
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+pgdata/
+
+# Node
+node_modules/
+frontend/dist/
+frontend/build/
+
+# Logs
+*.log
+
+# Manage (PID files & runtime logs)
+.claude/pids/
+
+# ---------------------------------------------------------------------------
+# 以下为「不希望进入版本库」的内容，逐条说明原因
+# ---------------------------------------------------------------------------
+
+# Claude Code 本地配置（可能含本机路径与权限规则）
+.claude/
+
+# 数据库备份（34MB，二进制数据，用 pg_dump 可随时重新生成）
+data/luckin_spatial_backup.sql
+
+# 离线部署包（合计约 381MB 的二进制产物：便携 Node、PostGIS 捆绑包、Python wheel）
+# 其中 postgis-bundle-*.zip 单个 119MB，超过 GitHub 100MB 硬限制，推送必被拒绝。
+# 这些产物在本地和服务器上均已存在，不需要也不适合进版本库。
+deploy/wheels/
+deploy/node/
+deploy/postgis/
+deploy/requirements-runtime.txt
+
+# 面试材料：含个人简历（姓名/手机/邮箱）及面试准备文档，不入公开仓库
+面试材料/
+
+# 密钥类文件兜底
+*.pem
+*.key
+*.p12
+credentials.json
